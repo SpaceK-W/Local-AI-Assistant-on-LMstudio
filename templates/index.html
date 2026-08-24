@@ -1,0 +1,2848 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Local AI Assistant</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/styles/github-dark.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/lib/common.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+    <style>
+        :root {
+            --bg: #0b1020;
+            --panel: rgba(17, 24, 39, 0.92);
+            --panel-soft: rgba(31, 41, 55, 0.92);
+            --border: rgba(255, 255, 255, 0.08);
+            --text: #e5e7eb;
+            --muted: #94a3b8;
+            --primary: #60a5fa;
+            --primary-2: #3b82f6;
+            --user: #1d4ed8;
+            --assistant: #111827;
+            --danger: #f87171;
+            --shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
+        }
+
+        * { box-sizing: border-box; }
+        html, body { height: 100%; }
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            background: radial-gradient(circle at top, #15213f 0%, var(--bg) 60%);
+            color: var(--text);
+            overflow: hidden;
+        }
+
+        button, input, textarea, select { font: inherit; }
+        button {
+            border: 0;
+            border-radius: 14px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-2));
+            color: #fff;
+            padding: 12px 16px;
+            box-shadow: 0 10px 24px rgba(59, 130, 246, 0.28);
+        }
+        button:disabled { opacity: .55; }
+
+        .app {
+            height: 100dvh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 20;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: calc(10px + env(safe-area-inset-top)) 12px 10px;
+            background: rgba(6, 10, 24, 0.9);
+            backdrop-filter: blur(18px);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .header .title {
+            font-weight: 700;
+            letter-spacing: .3px;
+            text-align: center;
+            flex: 1;
+            font-size: 16px;
+        }
+
+        .header .left,
+        .header .center,
+        .header .right {
+            width: auto;
+            flex: 0 0 auto;
+            display: flex;
+            justify-content: flex-start;
+        }
+        .header .center { justify-content: center; }
+        .header .right { justify-content: flex-end; }
+        .header button {
+            height: 36px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+        }
+        .header .ghost {
+            background: rgba(255,255,255,0.06);
+            box-shadow: none;
+            padding: 10px 12px;
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            color: var(--text);
+            white-space: nowrap;
+        }
+
+        .chat-wrap {
+            flex: 1;
+            overflow-y: auto;
+            padding: calc(68px + env(safe-area-inset-top)) 12px calc(140px + env(safe-area-inset-bottom));
+        }
+
+        .chat-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            min-height: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .empty-state {
+            margin: auto;
+            text-align: center;
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.8;
+            padding: 32px 18px;
+        }
+
+        .bubble {
+            max-width: min(86%, 680px);
+            padding: 12px 14px;
+            border-radius: 18px;
+            line-height: 1.65;
+            word-break: break-word;
+            box-shadow: var(--shadow);
+        }
+
+        .bubble.user {
+            align-self: flex-end;
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: #fff;
+            border-bottom-right-radius: 6px;
+        }
+
+        .bubble.assistant {
+            width: 100%;
+            max-width: 100%;
+            align-self: stretch;
+            background: rgba(17, 24, 39, 0.95);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-bottom-left-radius: 6px;
+        }
+
+        .bubble.system {
+            align-self: center;
+            background: rgba(255,255,255,0.06);
+            color: var(--muted);
+            border: 1px dashed var(--border);
+            box-shadow: none;
+            font-size: 13px;
+        }
+
+        .bubble.assistant :is(p, ul, ol, blockquote, pre, h1, h2, h3, h4, h5, h6) {
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+        .bubble.assistant pre {
+            background: #0b1220;
+            color: #e5e7eb;
+            padding: 12px;
+            overflow-x: auto;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+        .code-block-shell {
+            margin: 0 0 10px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: #0b1220;
+        }
+        .code-block-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            min-height: 32px;
+            padding: 5px 8px;
+            background: rgba(255,255,255,.06);
+            color: var(--muted);
+            font-size: 11px;
+        }
+        .code-block-actions { display: flex; gap: 5px; }
+        .code-block-actions button {
+            padding: 3px 8px;
+            border: 1px solid rgba(255,255,255,.12);
+            border-radius: 7px;
+            background: rgba(255,255,255,.06);
+            color: var(--muted);
+            box-shadow: none;
+            font-size: 11px;
+            cursor: pointer;
+        }
+        .code-block-actions button:hover { color: var(--text); background: rgba(255,255,255,.12); }
+        .code-block-shell pre {
+            margin: 0;
+            padding: 12px;
+            border: 0;
+            border-radius: 0;
+        }
+        .code-block-shell code {
+            display: block;
+            padding: 0;
+            background: transparent;
+        }
+        .code-runner-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 70;
+            display: none;
+        }
+        .code-runner-modal.show { display: block; }
+        .code-runner-modal .mask { position: absolute; inset: 0; background: rgba(0,0,0,.7); }
+        .code-runner-sheet {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: min(94vw, 900px);
+            height: min(82vh, 680px);
+            padding: 16px;
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            background: #0f172a;
+            box-shadow: var(--shadow);
+        }
+        .code-runner-sheet iframe { width: 100%; height: 100%; border: 0; border-radius: 10px; background: #fff; }
+        .bubble.assistant code {
+            background: rgba(255,255,255,0.06);
+            padding: 2px 4px;
+            border-radius: 6px;
+        }
+        .bubble.assistant em {
+            color: var(--muted);
+            font-style: italic;
+        }
+
+        .bubble-shell {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+        }
+        .bubble-content { min-width: 0; }
+        .bubble-footer {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 8px;
+            margin-top: 8px;
+            color: var(--muted);
+        }
+        .bubble-actions-standalone {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 6px;
+            min-height: 28px;
+            margin-top: -2px;
+            padding-right: 2px;
+        }
+        .bubble-actions-standalone button {
+            padding: 4px 10px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--muted);
+            box-shadow: none;
+            font-size: 12px;
+            opacity: .72;
+            cursor: pointer;
+        }
+
+        .message-image-link {
+            display: block;
+            width: fit-content;
+            max-width: 100%;
+            margin-bottom: 10px;
+        }
+        .message-image {
+            display: block;
+            width: min(220px, 100%);
+            max-height: 180px;
+            object-fit: cover;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.14);
+            cursor: zoom-in;
+        }
+
+        .image-viewer-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 60;
+            display: none;
+        }
+        .image-viewer-modal.show { display: flex; }
+        .image-viewer-modal .mask {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, .78);
+        }
+        .viewer-content {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            padding: 32px;
+        }
+        .viewer-content img {
+            display: block;
+            max-width:  min(94vw, 1400px);
+            max-height: 90vh;
+            object-fit: contain;
+            border-radius: 10px;
+            box-shadow: var(--shadow);
+            user-select: none;
+        }
+        .close-btn {
+            position: absolute;
+            top: 18px;
+            right: 18px;
+            z-index: 2;
+            width: 40px;
+            height: 40px;
+            padding: 0;
+            border-radius: 50%;
+            background: rgba(15, 23, 42, .86);
+            border: 1px solid rgba(255,255,255,.16);
+            color: var(--text);
+            box-shadow: none;
+            cursor: pointer;
+        }
+        .image-citation-tag {
+            display: inline-block;
+            margin: 0 2px;
+            padding: 1px 5px;
+            border-radius: 5px;
+            background: rgba(96, 165, 250, 0.18);
+            color: var(--primary);
+            font-size: .82em;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .image-citation-tag:hover { background: rgba(96, 165, 250, 0.32); }
+        .bubble-actions-standalone button:hover {
+            color: var(--text);
+            background: rgba(255,255,255,0.08);
+            border-color: rgba(255,255,255,0.18);
+            opacity: 1;
+        }
+        .bubble-footer .version-label {
+            font-size: 12px;
+            opacity: .72;
+        }
+        .collapsed-versions {
+            display: none;
+        }
+
+        .footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 20;
+            padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+            background: rgba(6, 10, 24, 0.95);
+            backdrop-filter: blur(18px);
+            border-top: 1px solid var(--border);
+        }
+
+        .composer {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        .composer-main {
+            min-width: 0;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+        }
+
+        .image-preview-bar {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            min-height: 54px;
+            margin-bottom: 8px;
+            padding: 6px 8px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: rgba(255,255,255,0.04);
+        }
+        .image-preview-bar.show { display: flex; }
+
+        .context-usage-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 12px 0;
+            color: var(--muted);
+            font-size: 12px;
+        }
+        .context-usage-track {
+            flex: 1;
+            height: 6px;
+            overflow: hidden;
+            border-radius: 999px;
+            background: rgba(255,255,255,.1);
+        }
+        .context-usage-progress {
+            width: 0;
+            height: 100%;
+            border-radius: inherit;
+            background: var(--primary);
+            transition: width .2s ease, background-color .2s ease;
+        }
+        .context-usage-progress.warning { background: #facc15; }
+        .context-usage-progress.danger { background: #f87171; }
+        .context-usage-text { flex: 0 0 auto; white-space: nowrap; }
+        .image-preview-item {
+            position: relative;
+            width: 44px;
+            height: 44px;
+        }
+        .image-preview-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+        .img-debug-badge {
+            position: absolute;
+            left: 50%;
+            bottom: -22px;
+            transform: translateX(-50%);
+            width: max-content;
+            max-width: 220px;
+            padding: 2px 5px;
+            border-radius: 5px;
+            background: rgba(15, 23, 42, 0.88);
+            color: var(--muted);
+            font-size: 11px;
+            line-height: 1.3;
+            white-space: nowrap;
+            pointer-events: none;
+        }
+        .image-preview-item:has(.img-debug-badge) { margin-bottom: 22px; }
+        .image-remove-btn {
+            position: absolute;
+            top: -7px;
+            right: -7px;
+            width: 20px;
+            height: 20px;
+            padding: 0;
+            border-radius: 50%;
+            background: #334155;
+            color: #fff;
+            box-shadow: none;
+            font-size: 13px;
+            line-height: 20px;
+            cursor: pointer;
+        }
+
+        .composer-tools {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 0 0 auto;
+        }
+
+        .tool-btn {
+            min-height: 34px;
+            padding: 7px 10px;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: var(--muted);
+            box-shadow: none;
+            font-size: 12px;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+        .tool-btn:hover { color: var(--text); background: rgba(255,255,255,0.1); }
+        .tool-btn.active {
+            background: rgba(59, 130, 246, 0.24);
+            border-color: rgba(96, 165, 250, 0.7);
+            color: #bfdbfe;
+        }
+
+        .image-upload-btn {
+            flex: 0 0 auto;
+            width: 40px;
+            height: 48px;
+            padding: 0;
+            border-radius: 14px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid var(--border);
+            color: var(--muted);
+            box-shadow: none;
+            cursor: pointer;
+        }
+        .image-upload-btn:hover { color: var(--text); background: rgba(255,255,255,0.1); }
+
+        .composer textarea {
+            width: 100%;
+            flex: 1;
+            resize: none;
+            min-height: 48px;
+            max-height: 140px;
+            padding: 12px 14px;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            background: rgba(255,255,255,0.06);
+            color: var(--text);
+            outline: none;
+        }
+        .composer textarea::placeholder { color: #94a3b8; }
+
+        .send-btn {
+            min-width: 84px;
+            height: 48px;
+            padding: 0 16px;
+            border-radius: 16px;
+        }
+
+        .citation-tag {
+            display: inline-block;
+            margin: 0 1px;
+            padding: 0 3px;
+            border: 0;
+            border-radius: 5px;
+            background: rgba(96, 165, 250, 0.16);
+            color: var(--primary);
+            font-size: .78em;
+            line-height: 1.4;
+            cursor: pointer;
+            vertical-align: baseline;
+        }
+        .citation-tag:hover { background: rgba(96, 165, 250, 0.3); color: #bfdbfe; }
+        .citation-popover {
+            position: fixed;
+            z-index: 60;
+            display: none;
+            width: min(320px, calc(100vw - 24px));
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: #0f172a;
+            box-shadow: var(--shadow);
+            color: var(--text);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .citation-popover.show { display: block; }
+        .citation-popover .citation-title { font-weight: 700; margin-bottom: 6px; }
+        .citation-popover a { color: var(--primary); overflow-wrap: anywhere; }
+
+        .loading {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .loading span {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--muted);
+            animation: pulse 1.1s infinite ease-in-out;
+        }
+        .loading span:nth-child(2) { animation-delay: .15s; }
+        .loading span:nth-child(3) { animation-delay: .3s; }
+        @keyframes pulse {
+            0%, 80%, 100% { transform: translateY(0); opacity: .5; }
+            40% { transform: translateY(-4px); opacity: 1; }
+        }
+
+        .modal {
+            position: fixed;
+            inset: 0;
+            z-index: 40;
+            display: none;
+        }
+        .modal.show { display: block; }
+        .modal .mask {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, .52);
+        }
+        .modal .sheet {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: min(92vw, 560px);
+            max-height: 84vh;
+            overflow: auto;
+            background: #0f172a;
+            border: 1px solid var(--border);
+            border-radius: 22px;
+            box-shadow: var(--shadow);
+            padding: 18px;
+        }
+        .sheet h3 { margin: 0 0 16px; }
+        .sheet .row { margin-bottom: 14px; }
+        .sheet label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+        .sheet select,
+        .sheet textarea,
+        .sheet input[type="range"] {
+            width: 100%;
+        }
+        .sheet select,
+        .sheet textarea {
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            background: rgba(255,255,255,0.06);
+            color: var(--text);
+            padding: 12px 14px;
+            outline: none;
+        }
+        .sheet textarea { min-height: 120px; resize: vertical; }
+        .sheet .actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 16px;
+        }
+        .sheet .actions .ghost-btn {
+            background: rgba(255,255,255,0.06);
+            box-shadow: none;
+            cursor: pointer;
+        }
+        .range-line {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .range-value {
+            min-width: 44px;
+            text-align: right;
+            color: var(--primary);
+            font-weight: 700;
+        }
+
+        .drawer {
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+            display: none;
+        }
+        .drawer.show { display: block; }
+        .drawer .mask {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, .52);
+        }
+        .drawer .panel {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: min(88vw, 360px);
+            height: 100%;
+            background: #0f172a;
+            border-right: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            padding: 16px;
+        }
+        .drawer .panel h3 {
+            margin: 0 0 12px;
+        }
+        .drawer .panel .history-list {
+            flex: 1;
+            overflow: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .history-item {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            text-align: left;
+            padding: 12px 14px;
+            border-radius: 14px;
+            border: 1px solid var(--border);
+            background: rgba(255,255,255,0.05);
+            color: var(--text);
+            box-shadow: none;
+        }
+        .history-item.active {
+            border-color: rgba(96, 165, 250, 0.7);
+            background: rgba(59, 130, 246, 0.16);
+        }
+        .history-item .meta {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-width: 0;
+            flex: 1;
+        }
+        .history-item .meta .title {
+            font-size: 14px;
+            font-weight: 700;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .history-item .meta .time {
+            font-size: 12px;
+            color: var(--muted);
+        }
+        .history-item .delete-btn {
+            flex: 0 0 auto;
+            border-radius: 12px;
+            padding: 8px 10px;
+            background: rgba(248, 113, 113, 0.14);
+            color: #fecaca;
+            box-shadow: none;
+        }
+        .history-item .delete-btn:hover {
+            background: rgba(248, 113, 113, 0.22);
+        }
+        .history-empty {
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.8;
+            padding: 18px 8px;
+        }
+
+        @media (min-width: 800px) {
+            .header .title { font-size: 18px; }
+        }
+    </style>
+</head>
+<body>
+<div class="app">
+    <header class="header">
+        <div class="left">
+            <button id="historyBtn" class="ghost" type="button">📚 历史</button>
+        </div>
+        <div class="center">
+            <button id="newChatBtn" class="ghost" type="button">➕ 新对话</button>
+        </div>
+        <div class="title">Local AI Assistant</div>
+        <div class="right">
+            <button id="settingsBtn" class="ghost" type="button">⚙️ 参数设置</button>
+        </div>
+    </header>
+
+    <main class="chat-wrap" id="chatWrap">
+        <div class="chat-list" id="chatList">
+            <div class="empty-state" id="emptyState">
+                点击下方输入框开始对话。<br>
+                页面会自动从 LM Studio 读取可用模型。
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="composer">
+            <button id="imageUploadBtn" class="image-upload-btn" type="button" title="上传图片" aria-label="上传图片">🖼️</button>
+            <input id="imageInput" type="file" accept="image/*" hidden>
+            <div class="composer-main">
+                <div id="imagePreviewBar" class="image-preview-bar" aria-live="polite"></div>
+                <div class="context-usage-bar">
+                    <div class="context-usage-track" role="progressbar" aria-valuemin="0" aria-valuemax="100">
+                        <div id="contextUsageProgress" class="context-usage-progress"></div>
+                    </div>
+                    <div id="contextUsageText" class="context-usage-text">上下文用量: 0 / 8192 (0%)</div>
+                </div>
+                <textarea id="messageInput" placeholder="输入消息，Enter 发送，Shift+Enter 换行"></textarea>
+            </div>
+            <div class="composer-tools">
+                <button id="webSearchToggle" class="tool-btn" type="button" aria-pressed="false">🔎 联网: 关</button>
+            </div>
+            <button id="sendBtn" class="send-btn" type="button">发送</button>
+        </div>
+    </footer>
+</div>
+
+<div class="citation-popover" id="citationPopover" role="dialog" aria-live="polite"></div>
+
+<div class="drawer" id="historyDrawer" aria-hidden="true">
+    <div class="mask" id="historyMask"></div>
+    <div class="panel">
+        <h3>历史会话</h3>
+        <div class="history-list" id="historyList"></div>
+    </div>
+</div>
+
+<div class="modal" id="settingsModal" aria-hidden="true">
+    <div class="mask" id="settingsMask"></div>
+    <div class="sheet">
+        <h3>参数设置</h3>
+        <div class="row">
+            <label for="modelSelect">选择模型</label>
+            <select id="modelSelect"></select>
+        </div>
+        <div class="row">
+            <label for="systemPrompt">系统提示词</label>
+            <textarea id="systemPrompt"> </textarea>
+        </div>
+        <div class="row">
+            <label for="temperature">温度 Temperature</label>
+            <div class="range-line">
+                <input id="temperature" type="range" min="0" max="1" step="0.1" value="0.7">
+                <div class="range-value" id="temperatureValue">0.7</div>
+            </div>
+        </div>
+        <div class="row">
+            <label for="imageCompressRatio">图片压缩比例</label>
+            <div class="range-line">
+                <input id="imageCompressRatio" type="range" min="10" max="100" step="5" value="50">
+                <div class="range-value" id="imageCompressRatioValue">50%</div>
+            </div>
+        </div>
+        <div class="actions">
+            <button id="closeSettingsBtn" class="ghost-btn" type="button">关闭</button>
+            <button id="saveSettingsBtn" type="button">保存</button>
+        </div>
+    </div>
+</div>
+
+<div class="image-viewer-modal" id="imageViewerModal" aria-hidden="true">
+    <div class="mask" id="imageViewerMask"></div>
+    <div class="viewer-content">
+        <button type="button" class="close-btn" id="closeImageViewerBtn">✕</button>
+        <img id="viewerImage" src="" alt="查看图片">
+    </div>
+</div>
+
+<div class="code-runner-modal" id="codeRunnerModal" aria-hidden="true">
+    <div class="mask" id="codeRunnerMask"></div>
+    <div class="code-runner-sheet">
+        <button type="button" class="close-btn" id="closeCodeRunnerBtn">✕</button>
+        <iframe id="codeRunnerFrame" sandbox="allow-scripts"></iframe>
+    </div>
+</div>
+
+<script>
+    if (window.marked) {
+        marked.setOptions({ breaks: true, gfm: true });
+    }
+
+    function renderMarkdownContent(content) {
+        const source = String(content || '');
+        if (!window.marked) {
+            return `<pre>${escapeHtml(source)}</pre>`;
+        }
+
+        const formulas = [];
+        const protectedSource = source.replace(
+            /(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|(?<!\\)\$(?!\$)(?:\\.|[^$\\\n])+(?<!\\)\$(?!\$))/g,
+            (formula) => {
+                const token = `KATEXFORMULA${formulas.length}PLACEHOLDER`;
+                formulas.push(formula);
+                return token;
+            }
+        );
+
+        let html = marked.parse(protectedSource);
+        formulas.forEach((formula, index) => {
+            const token = `KATEXFORMULA${index}PLACEHOLDER`;
+            html = html.split(token).join(escapeHtml(formula));
+        });
+        return html;
+    }
+
+    function normalizeCodeLanguage(className = '') {
+        const match = String(className).match(/(?:language|lang)-([\w+-]+)/i);
+        return (match ? match[1] : 'text').toLowerCase();
+    }
+
+    function escapeAttribute(value) {
+        return escapeHtml(String(value || '')).replace(/`/g, '&#96;');
+    }
+
+    function enhanceCodeBlocks(element) {
+        if (!element) return;
+        element.querySelectorAll('pre').forEach((pre) => {
+            if (pre.parentElement?.classList.contains('code-block-shell')) return;
+            const code = pre.querySelector('code');
+            if (!code) return;
+
+            const language = normalizeCodeLanguage(code.className);
+            if (window.hljs) {
+                if (language !== 'text' && hljs.getLanguage(language)) {
+                    code.classList.add(`language-${language}`);
+                }
+                hljs.highlightElement(code);
+            }
+
+            const shell = document.createElement('div');
+            shell.className = 'code-block-shell';
+            const toolbar = document.createElement('div');
+            toolbar.className = 'code-block-toolbar';
+            const label = document.createElement('span');
+            label.textContent = language === 'text' ? '代码' : language.toUpperCase();
+            toolbar.appendChild(label);
+
+            const actions = document.createElement('div');
+            actions.className = 'code-block-actions';
+            const copyButton = document.createElement('button');
+            copyButton.type = 'button';
+            copyButton.className = 'code-copy-btn';
+            copyButton.textContent = '📋 复制';
+            copyButton.dataset.codeText = code.textContent || '';
+            actions.appendChild(copyButton);
+
+            if (['javascript', 'js', 'html', 'xml'].includes(language)) {
+                const runButton = document.createElement('button');
+                runButton.type = 'button';
+                runButton.className = 'code-run-btn';
+                runButton.textContent = '▶️ 运行';
+                runButton.dataset.codeLanguage = language;
+                runButton.dataset.codeText = code.textContent || '';
+                actions.appendChild(runButton);
+            }
+            toolbar.appendChild(actions);
+            shell.appendChild(toolbar);
+            pre.replaceWith(shell);
+            shell.appendChild(pre);
+        });
+    }
+
+    function openCodeRunner(code, language) {
+        const source = String(code || '');
+        const doc = ['html', 'xml'].includes(language)
+            ? source
+            : `<!doctype html><html><body><scr${'ipt'}>${source.replace(/<\/script/gi, '<\\/script')}<\/script></body></html>`;
+        codeRunnerFrame.srcdoc = doc;
+        codeRunnerModal.classList.add('show');
+        codeRunnerModal.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeCodeRunner() {
+        codeRunnerModal.classList.remove('show');
+        codeRunnerModal.setAttribute('aria-hidden', 'true');
+        codeRunnerFrame.srcdoc = '';
+    }
+
+    function renderCitationTags(element, citations = []) {
+        if (!element || !Array.isArray(citations) || !citations.length) return;
+        const citationIds = new Set(citations.map((item) => String(item?.id || '').trim()).filter(Boolean));
+        if (!citationIds.size) return;
+
+        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+        const textNodes = [];
+        while (walker.nextNode()) {
+            const node = walker.currentNode;
+            if (node.parentElement && !node.parentElement.closest('pre, code, a')) textNodes.push(node);
+        }
+
+        textNodes.forEach((node) => {
+            const source = node.nodeValue || '';
+            const fragment = document.createDocumentFragment();
+            let lastIndex = 0;
+            const pattern = /\[(\d+)\]/g;
+            let match;
+            let changed = false;
+            while ((match = pattern.exec(source)) !== null) {
+                const id = match[1];
+                if (!citationIds.has(id)) continue;
+                changed = true;
+                fragment.appendChild(document.createTextNode(source.slice(lastIndex, match.index)));
+                const tag = document.createElement('sup');
+                tag.className = 'citation-tag';
+                tag.dataset.id = id;
+                tag.textContent = `[${id}]`;
+                tag.setAttribute('role', 'button');
+                tag.setAttribute('tabindex', '0');
+                tag.setAttribute('aria-label', `删除会话 ${id}`);
+                fragment.appendChild(tag);
+                lastIndex = match.index + match[0].length;
+            }
+            if (changed) {
+                fragment.appendChild(document.createTextNode(source.slice(lastIndex)));
+                node.parentNode.replaceChild(fragment, node);
+            }
+        });
+    }
+
+    function getSessionImageMap() {
+        const map = new Map();
+        const session = getCurrentSession();
+        (session?.messages || []).forEach((message) => {
+            if (message?.role === 'user' && message.imageId && message.imageBase64) {
+                map.set(message.imageId, message.imageBase64);
+            }
+        });
+        return map;
+    }
+
+    function renderImageCitationTags(element) {
+        if (!element) return;
+        const imageMap = getSessionImageMap();
+        if (!imageMap.size) return;
+
+        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+        const textNodes = [];
+        while (walker.nextNode()) {
+            const node = walker.currentNode;
+            if (node.parentElement && !node.parentElement.closest('pre, code, a')) textNodes.push(node);
+        }
+
+        textNodes.forEach((node) => {
+            const source = node.nodeValue || '';
+            const fragment = document.createDocumentFragment();
+            let lastIndex = 0;
+            let changed = false;
+            const pattern = /\[(image_\d+)\]/gi;
+            let match;
+            while ((match = pattern.exec(source)) !== null) {
+                const imageId = match[1].toLowerCase();
+                if (!imageMap.has(imageId)) continue;
+                changed = true;
+                fragment.appendChild(document.createTextNode(source.slice(lastIndex, match.index)));
+                const tag = document.createElement('sup');
+                tag.className = 'image-citation-tag';
+                tag.dataset.imageId = imageId;
+                tag.dataset.imageBase64 = imageMap.get(imageId);
+                tag.textContent = `[${imageId}]`;
+                tag.setAttribute('role', 'button');
+                tag.setAttribute('tabindex', '0');
+                tag.setAttribute('aria-label', `查看 ${imageId} 图片`);
+                tag.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    openImageViewer(imageMap.get(imageId));
+                });
+                tag.addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        openImageViewer(imageMap.get(imageId));
+                    }
+                });
+                fragment.appendChild(tag);
+                lastIndex = match.index + match[0].length;
+            }
+            if (changed) {
+                fragment.appendChild(document.createTextNode(source.slice(lastIndex)));
+                node.parentNode.replaceChild(fragment, node);
+            }
+        });
+    }
+
+    function renderMath(element) {
+        if (!element || typeof window.renderMathInElement !== 'function') {
+            return;
+        }
+
+        try {
+            window.renderMathInElement(element, {
+                delimiters: [
+                    { left: '$$', right: '$$', display: true },
+                    { left: '\\[', right: '\\]', display: true },
+                    { left: '\\(', right: '\\)', display: false },
+                    { left: '$', right: '$', display: false }
+                ],
+                throwOnError: false,
+                strict: 'ignore',
+                ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+            });
+        } catch (error) {
+            console.warn('LaTeX 渲染失败', error);
+        }
+    }
+
+    const STORAGE_KEY = 'ai_chat_sessions';
+    const WEB_SEARCH_STORAGE_KEY = 'ai_web_search_enabled';
+    const SETTINGS_STORAGE_KEY = 'ai_chat_settings';
+    const chatWrap = document.getElementById('chatWrap');
+    const chatList = document.getElementById('chatList');
+    let emptyState = document.getElementById('emptyState');
+    const messageInput = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const imageUploadBtn = document.getElementById('imageUploadBtn');
+    const imageInput = document.getElementById('imageInput');
+    const imagePreviewBar = document.getElementById('imagePreviewBar');
+    const webSearchToggle = document.getElementById('webSearchToggle');
+    const historyBtn = document.getElementById('historyBtn');
+    const newChatBtn = document.getElementById('newChatBtn');
+    const settingsBtn = document.getElementById('settingsBtn');
+    const historyDrawer = document.getElementById('historyDrawer');
+    const historyMask = document.getElementById('historyMask');
+    const historyList = document.getElementById('historyList');
+    const settingsModal = document.getElementById('settingsModal');
+    const imageViewerModal = document.getElementById('imageViewerModal');
+    const imageViewerMask = document.getElementById('imageViewerMask');
+    const closeImageViewerBtn = document.getElementById('closeImageViewerBtn');
+    const viewerImage = document.getElementById('viewerImage');
+    const settingsMask = document.getElementById('settingsMask');
+    const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+    const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+    const modelSelect = document.getElementById('modelSelect');
+    const systemPromptInput = document.getElementById('systemPrompt');
+    const temperatureInput = document.getElementById('temperature');
+    const temperatureValue = document.getElementById('temperatureValue');
+    const imageCompressRatio = document.getElementById('imageCompressRatio');
+    const imageCompressRatioValue = document.getElementById('imageCompressRatioValue');
+    const contextUsageText = document.getElementById('contextUsageText');
+    const contextUsageProgress = document.getElementById('contextUsageProgress');
+    const contextUsageTrack = contextUsageProgress?.parentElement || null;
+    const citationPopover = document.getElementById('citationPopover');
+    const codeRunnerModal = document.getElementById('codeRunnerModal');
+    const codeRunnerMask = document.getElementById('codeRunnerMask');
+    const closeCodeRunnerBtn = document.getElementById('closeCodeRunnerBtn');
+    const codeRunnerFrame = document.getElementById('codeRunnerFrame');
+    let isWebSearchEnabled = false;
+    let selectedImageBase64 = null;
+    let selectedImageWidth = null;
+    let selectedImageHeight = null;
+    let imageCompressionRequestId = 0;
+
+    const DEFAULT_SYSTEM_PROMPT = '';
+    const DEFAULT_MODEL = 'local-model';
+
+    let sessions = [];
+    let currentSessionId = '';
+    let historyMessages = [];
+    let modelsLoaded = false;
+    let sending = false;
+    let currentAbortController = null;
+    const lastSentContextBySession = new Map();
+
+    const settings = {
+        model: DEFAULT_MODEL,
+        system_prompt: DEFAULT_SYSTEM_PROMPT,
+        temperature: 0.7,
+        image_compress_ratio: 50
+    };
+
+    function loadSettingsFromStorage() {
+        try {
+            const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
+            if (!raw) return;
+
+            const parsed = JSON.parse(raw);
+            if (!parsed || typeof parsed !== 'object') return;
+
+            if (typeof parsed.model === 'string' && parsed.model.trim()) {
+                settings.model = parsed.model.trim();
+            }
+            if (typeof parsed.system_prompt === 'string') {
+                settings.system_prompt = parsed.system_prompt;
+            }
+            if (typeof parsed.temperature === 'number' && Number.isFinite(parsed.temperature)) {
+                settings.temperature = parsed.temperature;
+            }
+            if (Number.isFinite(Number(parsed.image_compress_ratio))) {
+                settings.image_compress_ratio = Math.min(100, Math.max(10, Number(parsed.image_compress_ratio)));
+            }
+        } catch (error) {
+            console.warn('读取设置失败', error);
+        }
+    }
+
+    function saveSettingsToStorage() {
+        try {
+            localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify({
+                model: settings.model,
+                system_prompt: settings.system_prompt,
+                temperature: settings.temperature,
+                image_compress_ratio: settings.image_compress_ratio,
+            }));
+        } catch (error) {
+            console.warn('保存设置失败', error);
+        }
+    }
+
+    function normalizeMaxContextTokens(value) {
+        const number = Number(value);
+        return Number.isFinite(number) ? Math.min(262144, Math.max(256, Math.round(number))) : 70000;
+    }
+
+    function estimateTokens(value) {
+        if (Array.isArray(value)) {
+            return Math.ceil(value.reduce((total, message) => {
+                if (!message || typeof message !== 'object') return total;
+                let tokens = estimateTokens(message.content);
+                if (message.imageBase64 || message.imageId) {
+                    tokens += calculateImageTokens(message.imageWidth, message.imageHeight);
+                }
+                return total + tokens;
+            }, 0));
+        }
+
+        const text = String(value ?? '');
+        let tokens = 0;
+        let index = 0;
+        while (index < text.length) {
+            const character = text[index];
+            if (/^[\u3400-\u9fff\u3000-\u303f\uff00-\uffef]$/.test(character)) {
+                tokens += 1.5;
+                index += 1;
+                continue;
+            }
+            const word = text.slice(index).match(/^[A-Za-z0-9]+(?:['._-][A-Za-z0-9]+)*/);
+            if (word) {
+                tokens += Math.max(1, word[0].length / 4, word[0].split(/[-_.' ]+/).filter(Boolean).length * 1.3);
+                index += word[0].length;
+                continue;
+            }
+            if (/\s/.test(character)) {
+                index += 1;
+                continue;
+            }
+            tokens += 1;
+            index += 1;
+        }
+        return Math.ceil(tokens);
+    }
+
+    function calculateImageTokens(width, height) {
+        if (!width || !height) return 1024;
+        let w = width, h = height;
+        if (Math.max(w, h) > 2048) {
+            const scale = 2048 / Math.max(w, h);
+            w = Math.round(w * scale);
+            h = Math.round(h * scale);
+        }
+        const minSide = Math.min(w, h);
+        if (minSide > 768) {
+            const scale = 768 / minSide;
+            w = Math.round(w * scale);
+            h = Math.round(h * scale);
+        }
+        const tilesW = Math.ceil(w / 512);
+        const tilesH = Math.ceil(h / 512);
+        return 85 + 170 * (tilesW * tilesH);
+    }
+
+    function getContextMessages(session) {
+        if (!session) return [];
+        const messages = (session.messages || [])
+            .filter((message) => message && message.excludeFromContext !== true
+                && (message.role === 'user' || message.role === 'assistant'));
+        if (!messages.length) return [];
+        return [{ role: 'system', content: session.system_prompt || DEFAULT_SYSTEM_PROMPT }].concat(messages);
+    }
+
+    function getContextLimit(session) {
+        return normalizeMaxContextTokens(session?.max_context_tokens ?? settings.max_context_tokens);
+    }
+
+    function truncateTextToTokenBudget(text, tokenBudget) {
+        const value = String(text || '');
+        if (tokenBudget <= 0) return '';
+        if (estimateTokens(value) <= tokenBudget) return value;
+        let low = 0;
+        let high = value.length;
+        while (low < high) {
+            const middle = Math.ceil((low + high) / 2);
+            if (estimateTokens(value.slice(0, middle)) <= tokenBudget) low = middle;
+            else high = middle - 1;
+        }
+        return value.slice(0, low).trimEnd() + '\n\n[当前消息过长，已按模型 Token 上限截断]';
+    }
+
+    function updateContextUsage(session = getCurrentSession(), contextMessages = null) {
+        if (!contextUsageText || !contextUsageProgress) return;
+        const maxTokens = getContextLimit(session);
+        let actualMessages = contextMessages || lastSentContextBySession.get(session?.id);
+        if (!actualMessages && session) {
+            try {
+                actualMessages = buildApiContext(session.messages);
+            } catch (_) {
+                actualMessages = [];
+            }
+        }
+        const totalTokens = session
+            ? estimateTokens([{ role: 'system', content: session.system_prompt || DEFAULT_SYSTEM_PROMPT }].concat(actualMessages || []))
+            : 0;
+        const percentage = maxTokens ? Math.min(100, Math.round((totalTokens / maxTokens) * 100)) : 0;
+        contextUsageText.textContent = `上下文用量: ${totalTokens} / ${maxTokens} (${percentage}%)`;
+        contextUsageProgress.style.width = `${percentage}%`;
+        contextUsageProgress.classList.toggle('warning', percentage >= 60 && percentage <= 85);
+        contextUsageProgress.classList.toggle('danger', percentage > 85);
+        contextUsageTrack?.setAttribute('aria-valuenow', String(percentage));
+        contextUsageTrack?.setAttribute('aria-valuetext', `${totalTokens} / ${maxTokens} Tokens`);
+    }
+
+    function updateWebSearchToggle() {
+        webSearchToggle.classList.toggle('active', isWebSearchEnabled);
+        webSearchToggle.textContent = `🔍 联网: ${isWebSearchEnabled ? '开' : '关'}`;
+        webSearchToggle.setAttribute('aria-pressed', String(isWebSearchEnabled));
+    }
+
+    function loadWebSearchSetting() {
+        try {
+            isWebSearchEnabled = localStorage.getItem(WEB_SEARCH_STORAGE_KEY) === 'true';
+        } catch (error) {
+            console.warn('读取联网搜索状态失败', error);
+        }
+        updateWebSearchToggle();
+    }
+
+    function clearSelectedImage() {
+        selectedImageBase64 = null;
+        selectedImageWidth = null;
+        selectedImageHeight = null;
+        imageInput.value = '';
+        imagePreviewBar.innerHTML = '';
+        imagePreviewBar.classList.remove('show');
+    }
+
+    function showImagePreview(dataUrl, fileName = '未命名图片') {
+        imagePreviewBar.innerHTML = '';
+        const item = document.createElement('div');
+        item.className = 'image-preview-item';
+
+        const image = document.createElement('img');
+        image.src = dataUrl;
+        image.alt = fileName;
+        image.style.cursor = 'zoom-in';
+        image.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            openImageViewer(dataUrl);
+        });
+        item.appendChild(image);
+
+        const removeButton = document.createElement('button');
+        removeButton.type = 'button';
+        removeButton.className = 'image-remove-btn';
+        removeButton.textContent = '✕';
+        removeButton.title = '移除图片';
+        removeButton.setAttribute('aria-label', '移除图片');
+        removeButton.addEventListener('click', (event) => {
+            event.stopPropagation();
+            clearSelectedImage();
+        });
+        item.appendChild(removeButton);
+
+        imagePreviewBar.appendChild(item);
+        imagePreviewBar.classList.add('show');
+    }
+
+    function getBase64Size(base64Str) {
+        const byteSize = Math.round((String(base64Str || '').length * 3) / 4);
+        if (byteSize >= 1024 * 1024) {
+            return `${(byteSize / (1024 * 1024)).toFixed(2)} MB`;
+        }
+        return `${(byteSize / 1024).toFixed(1)} KB`;
+    }
+
+    function showImageDebugInfo(dataUrl, width, height) {
+        const item = imagePreviewBar.querySelector('.image-preview-item');
+        if (!item) return;
+        const badge = document.createElement('span');
+        badge.className = 'img-debug-badge';
+        badge.textContent = `尺寸: ${width}×${height} | 大小: ${getBase64Size(dataUrl)}`;
+        item.appendChild(badge);
+    }
+
+    function readFileAsDataUrl(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.addEventListener('load', () => {
+                if (typeof reader.result === 'string') {
+                    resolve(reader.result);
+                } else {
+                    reject(new Error('图片读取失败'));
+                }
+            });
+            reader.addEventListener('error', () => reject(reader.error || new Error('图片读取失败')));
+            reader.readAsDataURL(file);
+        });
+    }
+
+    function loadImage(dataUrl) {
+        return new Promise((resolve, reject) => {
+            const image = new Image();
+            image.onload = () => resolve(image);
+            image.onerror = () => reject(new Error('图片加载失败'));
+            image.src = dataUrl;
+        });
+    }
+
+    async function compressImage(file, maxDimension = 768, quality = 0.7, compressionRatio = 50) {
+        if (!file || !file.type || !file.type.startsWith('image/')) {
+            throw new Error('请先选择有效的图片文件');
+        }
+
+        const source = await readFileAsDataUrl(file);
+        const image = await loadImage(source);
+        if (!image.naturalWidth || !image.naturalHeight) {
+            throw new Error('无法读取图片尺寸');
+        }
+
+        const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
+        const width = Math.max(1, Math.round(image.naturalWidth * scale));
+        const height = Math.max(1, Math.round(image.naturalHeight * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext('2d', { alpha: false });
+        if (!context) throw new Error('无法创建 Canvas 画布');
+
+        context.fillStyle = '#fff';
+        context.fillRect(0, 0, width, height);
+        context.drawImage(image, 0, 0, width, height);
+
+        let compressed = canvas.toDataURL('image/jpeg', quality);
+        const ratio = Math.min(100, Math.max(10, Number(compressionRatio) || 50));
+        const maxBytes = Math.round((150 + (2048 - 150) * (ratio / 100)) * 1024);
+        let currentQuality = quality;
+        while (compressed.length * 0.75 > maxBytes && currentQuality > 0.15) {
+            currentQuality = Math.max(0.15, currentQuality - 0.1);
+            compressed = canvas.toDataURL('image/jpeg', currentQuality);
+        }
+
+        return { dataUrl: compressed, width, height };
+    }
+
+    async function readImageFile(file) {
+        if (!file) {
+            clearSelectedImage();
+            return;
+        }
+        if (!file.type || !file.type.startsWith('image/')) {
+            clearSelectedImage();
+            return;
+        }
+
+        const requestId = ++imageCompressionRequestId;
+        imagePreviewBar.classList.add('show');
+        imagePreviewBar.textContent = '已预览图片';
+        try {
+            const session = getCurrentSession();
+            const ratio = Math.min(100, Math.max(10, Number(
+                session?.image_compress_ratio ?? settings.image_compress_ratio ?? 50
+            ) || 50));
+            const maxDimension = Math.round(200 + (1920 - 200) * (ratio / 100));
+            const quality = Math.max(0.15, (ratio / 100) * 0.95);
+            const compressedImage = await compressImage(file, maxDimension, quality, ratio);
+            if (requestId !== imageCompressionRequestId) return;
+            selectedImageBase64 = compressedImage.dataUrl;
+            selectedImageWidth = compressedImage.width;
+            selectedImageHeight = compressedImage.height;
+            showImagePreview(compressedImage.dataUrl, file.name);
+            showImageDebugInfo(compressedImage.dataUrl, compressedImage.width, compressedImage.height);
+        } catch (error) {
+            if (requestId !== imageCompressionRequestId) return;
+            console.warn('图片压缩失败', error);
+            clearSelectedImage();
+        }
+    }
+
+    function toggleWebSearch() {
+        isWebSearchEnabled = !isWebSearchEnabled;
+        try {
+            localStorage.setItem(WEB_SEARCH_STORAGE_KEY, String(isWebSearchEnabled));
+        } catch (error) {
+            console.warn('读取联网搜索状态失败', error);
+        }
+        updateWebSearchToggle();
+    }
+
+    function escapeHtml(text) {
+        return String(text)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function buildApiUrl(path) {
+        return path;
+    }
+
+    function describeHttpStatus(status) {
+        const map = {
+            400: '请求参数错误（400）',
+            401: '未授权，请检查 API Key（401）',
+            403: '访问被拒绝（403）',
+            404: '接口地址不存在（404）',
+            405: '请求方法不允许（405）',
+            408: '请求超时（408）',
+            415: '不支持的媒体类型（415）',
+            429: '请求过于频繁（429）',
+            500: '服务器内部错误（500）',
+            502: '服务器网关错误（502）',
+            503: '服务暂时不可用（503）',
+            504: '请求超时（504）'
+        };
+
+        return map[status] || `请求失败，HTTP ${status} 错误`;
+    }
+
+    function extractReadableError(status, payload, rawText = '') {
+        let detail = '';
+
+        if (payload && typeof payload === 'object') {
+            detail = payload.detail || payload.error || payload.reply || payload.message || '';
+        } else if (typeof payload === 'string') {
+            detail = payload;
+        }
+
+        if (typeof detail !== 'string') {
+            detail = stringifyError(detail, '无法解析错误详情');
+        }
+
+        if (!detail && rawText) {
+            detail = rawText.replace(/<[^>]*>/g, '').trim();
+        }
+
+        const summary = describeHttpStatus(status);
+        return detail ? `${summary}：${detail}` : summary;
+    }
+
+    function stringifyError(error, fallback = '未知错误') {
+        if (error === null || error === undefined) return fallback;
+        if (typeof error === 'string') return error;
+        if (error instanceof Error && error.message) return error.message;
+        if (typeof error === 'object') {
+            const detail = error.detail || error.error || error.message || error.raw;
+            if (typeof detail === 'string' && detail.trim()) return detail;
+            try {
+                return JSON.stringify(error);
+            } catch (_) {
+                return fallback;
+            }
+        }
+        return String(error);
+    }
+
+    function formatTime(value) {
+        const date = new Date(value || Date.now());
+        return date.toLocaleString('zh-CN', {
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+
+    function scrollToBottom() {
+        chatWrap.scrollTop = chatWrap.scrollHeight;
+    }
+
+    function autoResizeTextarea(el) {
+        el.style.height = 'auto';
+        el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+    }
+
+    function createTurnId() {
+        return `turn-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    }
+
+    function normalizeMessage(message) {
+        if (!message || typeof message !== 'object') {
+            return null;
+        }
+
+        const role = String(message.role || '').trim();
+        const content = typeof message.content === 'string' ? message.content : String(message.content ?? '');
+        if (!role || !content) {
+            return null;
+        }
+
+        return {
+            role,
+            content,
+            version: Number.isInteger(message.version) && message.version > 0 ? message.version : 1,
+            ...(typeof message.turnId === 'string' && message.turnId.trim() ? { turnId: message.turnId.trim() } : {}),
+            ...(message.excludeFromContext === true ? { excludeFromContext: true } : {}),
+            ...(Array.isArray(message.citations) ? { citations: message.citations } : {}),
+            ...(typeof message.imageBase64 === 'string' && message.imageBase64.startsWith('data:image/')
+                ? { imageBase64: message.imageBase64 }
+                : {}),
+            ...(typeof message.imageId === 'string' && /^image_\d+$/.test(message.imageId)
+                ? { imageId: message.imageId }
+                : {})
+        };
+    }
+
+    function getFirstUserMessageTitle(messages) {
+        const firstUser = (messages || []).find((item) => item && item.role === 'user' && String(item.content || '').trim());
+        if (!firstUser) {
+            return '新对话';
+        }
+
+        const text = String(firstUser.content).trim();
+        return text.slice(0, 15) || '新对话';
+    }
+
+    function createSession(overrides = {}) {
+        const now = Date.now();
+        const normalizedMessages = Array.isArray(overrides.messages)
+            ? overrides.messages.map(normalizeMessage).filter(Boolean)
+            : [];
+        let currentTurnId = '';
+        const messages = normalizedMessages.map((message, index) => {
+            if (message.role === 'user') {
+                currentTurnId = message.turnId || `turn-legacy-${index}`;
+            }
+            const turnId = message.turnId || currentTurnId || `turn-legacy-${index}`;
+            return { ...message, turnId };
+        });
+        let imageIndex = 0;
+        messages.forEach((message) => {
+            if (message.role !== 'user' || !message.imageBase64) return;
+            imageIndex += 1;
+            message.imageId = `image_${imageIndex}`;
+        });
+        return {
+            id: overrides.id || now.toString(),
+            title: overrides.title || '新对话',
+            messages,
+            system_prompt: overrides.system_prompt || settings.system_prompt || DEFAULT_SYSTEM_PROMPT,
+            temperature: typeof overrides.temperature === 'number'
+                ? overrides.temperature
+                : (Number.isFinite(Number(settings.temperature)) ? Number(settings.temperature) : 0.7),
+            image_compress_ratio: Number.isFinite(Number(overrides.image_compress_ratio))
+                ? Math.min(100, Math.max(10, Number(overrides.image_compress_ratio)))
+                : (Number.isFinite(Number(settings.image_compress_ratio))
+                    ? Math.min(100, Math.max(10, Number(settings.image_compress_ratio)))
+                    : 50),
+            model: overrides.model || settings.model || DEFAULT_MODEL,
+            updatedAt: typeof overrides.updatedAt === 'number' ? overrides.updatedAt : now
+        };
+    }
+
+    function loadSessionsFromStorage() {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) {
+                return [];
+            }
+
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed)) {
+                return [];
+            }
+
+            return parsed.map(createSession).filter(Boolean);
+        } catch (error) {
+            console.warn('读取消息失败', error);
+            return [];
+        }
+    }
+
+    function saveSessionsToStorage() {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+        } catch (error) {
+            console.warn('Markdown 渲染失败，回退到纯文本', error);
+            try {
+                const lightweightSessions = sessions.map((session) => ({
+                    ...session,
+                    messages: (session.messages || []).map((message) => {
+                        if (!message || typeof message !== 'object') return message;
+                        const { imageBase64, ...messageWithoutImage } = message;
+                        return imageBase64 ? messageWithoutImage : message;
+                    })
+                }));
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(lightweightSessions));
+            } catch (fallbackError) {
+                console.warn('Markdown 渲染回退也失败', fallbackError);
+            }
+        }
+    }
+
+    function getCurrentSession() {
+        return sessions.find((item) => item.id === currentSessionId) || null;
+    }
+
+    function sortSessionsByUpdatedAtDesc(list = sessions) {
+        return [...list].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    }
+
+    function ensureAtLeastOneSession() {
+        if (!sessions.length) {
+            const session = createSession();
+            sessions = [session];
+            currentSessionId = session.id;
+            saveSessionsToStorage();
+            return session;
+        }
+
+        const existing = getCurrentSession();
+        if (existing) {
+            return existing;
+        }
+
+        sessions = sortSessionsByUpdatedAtDesc(sessions);
+        currentSessionId = sessions[0].id;
+        return sessions[0];
+    }
+
+    function syncSettingsFromSession(session) {
+        if (!session) return;
+        settings.model = session.model || DEFAULT_MODEL;
+        settings.system_prompt = session.system_prompt || DEFAULT_SYSTEM_PROMPT;
+        settings.temperature = typeof session.temperature === 'number' ? session.temperature : 0.7;
+        settings.image_compress_ratio = Number.isFinite(Number(session.image_compress_ratio))
+            ? Math.min(100, Math.max(10, Number(session.image_compress_ratio)))
+            : 50;
+
+        modelSelect.value = settings.model;
+        systemPromptInput.value = settings.system_prompt;
+        temperatureInput.value = String(settings.temperature);
+        temperatureValue.textContent = Number(settings.temperature).toFixed(1);
+        imageCompressRatio.value = String(settings.image_compress_ratio);
+        imageCompressRatioValue.textContent = `${settings.image_compress_ratio}%`;
+        updateContextUsage(session);
+    }
+
+    function syncSessionFromUI(session) {
+        if (!session) return;
+        session.model = modelSelect.value || DEFAULT_MODEL;
+        session.system_prompt = systemPromptInput.value.trim() || DEFAULT_SYSTEM_PROMPT;
+        session.temperature = Number(temperatureInput.value) || 0.7;
+        session.image_compress_ratio = Math.min(100, Math.max(10, Number(imageCompressRatio.value) || 50));
+        session.updatedAt = Date.now();
+    }
+
+    function updateCurrentSessionTitleFromMessages(session) {
+        if (!session) return;
+        session.title = getFirstUserMessageTitle(session.messages);
+    }
+
+    function getVersionLabel(version) {
+        const numerals = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
+        const value = Number(version) || 1;
+        if (value <= 1) return '';
+        const label = value <= 10 ? numerals[value] : String(value);
+        return `第${label}版`;
+    }
+
+    function addBubbleFooter(bubble, role, message) {
+        if (role !== 'assistant') return;
+        const versionLabel = getVersionLabel(message?.version);
+        if (!versionLabel) return;
+
+        const footer = document.createElement('div');
+        footer.className = 'bubble-footer';
+        const label = document.createElement('span');
+        label.className = 'version-label';
+        label.textContent = versionLabel;
+        footer.appendChild(label);
+        bubble.appendChild(footer);
+    }
+
+    function addBubbleActions(shell, role, content, message, messageIndex = -1, historyCount = 0) {
+        if (role !== 'user' && role !== 'assistant') return;
+
+        const actions = document.createElement('div');
+        actions.className = 'bubble-actions-standalone';
+
+        const copyButton = document.createElement('button');
+        copyButton.type = 'button';
+        copyButton.className = 'copy-btn';
+        copyButton.dataset.copyText = content;
+        copyButton.textContent = '📋 复制';
+        copyButton.disabled = sending;
+        actions.appendChild(copyButton);
+
+        if (role === 'assistant') {
+            const regenerateButton = document.createElement('button');
+            regenerateButton.type = 'button';
+            regenerateButton.className = 'regenerate-btn';
+            regenerateButton.dataset.messageIndex = String(messageIndex);
+            regenerateButton.textContent = '🔄 重新生成';
+            actions.appendChild(regenerateButton);
+
+            if (historyCount > 0 && message?.turnId) {
+                const historyButton = document.createElement('button');
+                historyButton.type = 'button';
+                historyButton.className = 'history-versions-btn';
+                historyButton.dataset.historyGroup = message.turnId;
+                historyButton.textContent = `📜 展开历史 (${historyCount})`;
+                actions.appendChild(historyButton);
+            }
+        }
+
+        shell.appendChild(actions);
+    }
+
+    function openImageViewer(dataUrl) {
+        if (!dataUrl) return;
+        viewerImage.src = dataUrl;
+        imageViewerModal.classList.add('show');
+        imageViewerModal.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeImageViewer() {
+        imageViewerModal.classList.remove('show');
+        imageViewerModal.setAttribute('aria-hidden', 'true');
+        viewerImage.removeAttribute('src');
+    }
+
+    function renderBubble(role, content, appendToHistory = true, message = null, messageIndex = -1, renderOptions = {}) {
+        if (emptyState.parentElement) {
+            emptyState.remove();
+        }
+
+        const shell = document.createElement('div');
+        shell.className = 'bubble-shell';
+        if (renderOptions.collapsed) shell.classList.add('collapsed-versions');
+        if (message?.turnId) shell.dataset.historyGroup = message.turnId;
+
+        const bubble = document.createElement('div');
+        bubble.className = `bubble ${role}`;
+        if (messageIndex >= 0) bubble.dataset.messageIndex = String(messageIndex);
+        const contentElement = document.createElement('div');
+        contentElement.className = 'bubble-content';
+
+        if (role === 'assistant') {
+            contentElement.innerHTML = renderMarkdownContent(content);
+            renderCitationTags(contentElement, message?.citations || []);
+            renderImageCitationTags(contentElement);
+            renderMath(contentElement);
+            enhanceCodeBlocks(contentElement);
+        } else {
+            if (message?.imageBase64) {
+                const imageLink = document.createElement('a');
+                imageLink.className = 'message-image-link';
+                imageLink.href = '#';
+                imageLink.setAttribute('aria-label', '查看原始图片');
+                imageLink.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    openImageViewer(message.imageBase64);
+                });
+
+                const image = document.createElement('img');
+                image.className = 'message-image';
+                image.src = message.imageBase64;
+                image.alt = message.imageId || '用户上传图片';
+                imageLink.appendChild(image);
+                contentElement.appendChild(imageLink);
+            }
+            const textElement = document.createElement('div');
+            textElement.textContent = content;
+            contentElement.appendChild(textElement);
+        }
+
+        bubble.appendChild(contentElement);
+        addBubbleFooter(bubble, role, message);
+        shell.appendChild(bubble);
+        addBubbleActions(shell, role, content, message, messageIndex, renderOptions.historyCount || 0);
+        chatList.appendChild(shell);
+        toggleEmptyState();
+        scrollToBottom();
+
+        if (appendToHistory) {
+            const session = getCurrentSession();
+            if (session) {
+                session.messages.push({ role, content, version: 1, turnId: createTurnId() });
+                session.updatedAt = Date.now();
+                if (role === 'user' && session.title === '新对话') {
+                    updateCurrentSessionTitleFromMessages(session);
+                }
+                historyMessages = session.messages;
+                saveSessionsToStorage();
+                renderHistoryList();
+            }
+        }
+
+        return bubble;
+    }
+
+    function createAssistantBubble(message = null, messageIndex = -1, renderOptions = {}) {
+        return renderBubble('assistant', '', false, message, messageIndex, renderOptions);
+    }
+
+    function updateAssistantBubble(bubble, content, citations = []) {
+        if (!bubble) return;
+        const contentElement = bubble.querySelector('.bubble-content');
+        if (contentElement) {
+            contentElement.innerHTML = renderMarkdownContent(content);
+            renderCitationTags(contentElement, citations);
+            renderImageCitationTags(contentElement);
+            renderMath(contentElement);
+            enhanceCodeBlocks(contentElement);
+        }
+        const copyButton = bubble.parentElement?.querySelector('.copy-btn');
+        if (copyButton) copyButton.dataset.copyText = content;
+        scrollToBottom();
+    }
+
+    function appendStoppedMarker(content) {
+        const text = String(content || '').trimEnd();
+        if (text.includes('[已停止生成]')) {
+            return text;
+        }
+        return text ? `${text}\n\n*[已停止生成]*` : '*[已停止生成]*';
+    }
+
+    function persistAssistantMessage(session, assistantBubble, assistantText, stopped = false, userMessage = null, version = 1, citations = []) {
+        const finalText = stopped ? appendStoppedMarker(assistantText) : String(assistantText || '');
+        updateAssistantBubble(assistantBubble, finalText, citations);
+
+        const assistantMessage = {
+            role: 'assistant',
+            content: finalText,
+            version,
+            turnId: userMessage?.turnId || createTurnId(),
+            ...(stopped ? { excludeFromContext: true } : {}),
+            ...(citations.length ? { citations } : {})
+        };
+        session.messages.push(assistantMessage);
+        const assistantIndex = session.messages.length - 1;
+        assistantBubble.dataset.messageIndex = String(assistantIndex);
+        const regenerateButton = assistantBubble.parentElement?.querySelector('.regenerate-btn');
+        if (regenerateButton) regenerateButton.dataset.messageIndex = String(assistantIndex);
+        const versionLabel = assistantBubble.querySelector('.version-label');
+        const versionText = getVersionLabel(version);
+        if (versionText && !versionLabel) {
+            const label = document.createElement('span');
+            label.className = 'version-label';
+            label.textContent = versionText;
+            assistantBubble.querySelector('.bubble-footer')?.appendChild(label);
+        }
+
+        if (stopped && userMessage) {
+            userMessage.excludeFromContext = true;
+        }
+
+        historyMessages = session.messages;
+        session.system_prompt = systemPromptInput.value.trim() || session.system_prompt || DEFAULT_SYSTEM_PROMPT;
+        session.temperature = Number(temperatureInput.value) || session.temperature || 0.7;
+        session.model = modelSelect.value || session.model || DEFAULT_MODEL;
+        session.updatedAt = Date.now();
+        saveSessionsToStorage();
+        renderHistoryList();
+        renderMessages(session.messages);
+
+        return finalText;
+    }
+
+    function toggleEmptyState() {
+        if (historyMessages.length === 0) {
+            if (!emptyState.parentElement) {
+                chatList.appendChild(emptyState);
+            }
+            emptyState.style.display = 'block';
+        } else if (emptyState.parentElement) {
+            emptyState.remove();
+        }
+    }
+
+    function clearChatUI() {
+        chatList.innerHTML = '<div class="empty-state" id="emptyState">点击下方输入框开始对话。<br>页面会自动从 LM Studio 读取可用模型。</div>';
+        emptyState = chatList.querySelector('#emptyState');
+    }
+
+    function getMessageRenderStates(messages) {
+        const assistantGroups = new Map();
+        messages.forEach((message, index) => {
+            if (!message || message.role !== 'assistant' || !message.turnId) return;
+            if (!assistantGroups.has(message.turnId)) assistantGroups.set(message.turnId, []);
+            assistantGroups.get(message.turnId).push(index);
+        });
+
+        const states = new Map();
+        assistantGroups.forEach((indices, turnId) => {
+            if (indices.length < 2) return;
+            const latestIndex = indices[indices.length - 1];
+            indices.forEach((index) => {
+                states.set(index, {
+                    collapsed: index !== latestIndex,
+                    historyCount: index === latestIndex ? indices.length - 1 : 0,
+                    turnId
+                });
+            });
+        });
+        return states;
+    }
+
+    function renderMessages(messages) {
+        clearChatUI();
+        historyMessages = messages;
+
+        if (!messages || !messages.length) {
+            toggleEmptyState();
+            return;
+        }
+
+        const renderStates = getMessageRenderStates(messages);
+        messages.forEach((message, index) => {
+            if (!message || !message.role) return;
+            renderBubble(message.role, message.content, false, message, index, renderStates.get(index) || {});
+        });
+
+        toggleEmptyState();
+        scrollToBottom();
+    }
+
+    function renderHistoryList() {
+        const ordered = sortSessionsByUpdatedAtDesc(sessions);
+        historyList.innerHTML = '';
+
+        if (!ordered.length) {
+            const empty = document.createElement('div');
+            empty.className = 'history-empty';
+            empty.textContent = '暂无历史会话，发送消息后自动保存';
+            historyList.appendChild(empty);
+            return;
+        }
+
+        ordered.forEach((session) => {
+            const item = document.createElement('div');
+            item.className = `history-item${session.id === currentSessionId ? ' active' : ''}`;
+            item.innerHTML = `
+                <div class="meta">
+                    <div class="title">${escapeHtml(session.title || '新对话')}</div>
+                    <div class="time">${escapeHtml(formatTime(session.updatedAt))}</div>
+                </div>
+                <button type="button" class="delete-btn">🗑️</button>
+            `;
+
+            item.addEventListener('click', () => {
+                switchSession(session.id);
+                closeHistoryDrawer();
+            });
+
+            const deleteBtn = item.querySelector('.delete-btn');
+            deleteBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                deleteSession(session.id);
+            });
+
+            historyList.appendChild(item);
+        });
+    }
+
+    function openHistoryDrawer() {
+        renderHistoryList();
+        historyDrawer.classList.add('show');
+        historyDrawer.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeHistoryDrawer() {
+        historyDrawer.classList.remove('show');
+        historyDrawer.setAttribute('aria-hidden', 'true');
+    }
+
+    function hideSettings() {
+        settingsModal.classList.remove('show');
+        settingsModal.setAttribute('aria-hidden', 'true');
+    }
+
+    function showSettings() {
+        const session = getCurrentSession();
+        if (session) {
+            syncSettingsFromSession(session);
+        }
+        settingsModal.classList.add('show');
+        settingsModal.setAttribute('aria-hidden', 'false');
+    }
+
+    function fillModels(models) {
+        modelSelect.innerHTML = '';
+        const uniqueModels = [];
+        const seen = new Set();
+
+        (models || []).forEach((item) => {
+            const id = typeof item === 'string' ? item : item && item.id;
+            if (id && !seen.has(id)) {
+                seen.add(id);
+                uniqueModels.push(id);
+            }
+        });
+
+        if (!uniqueModels.length) {
+            uniqueModels.push(DEFAULT_MODEL);
+        }
+
+        uniqueModels.forEach((id) => {
+            const option = document.createElement('option');
+            option.value = id;
+            option.textContent = id;
+            modelSelect.appendChild(option);
+        });
+
+        if (!seen.has(settings.model)) {
+            settings.model = uniqueModels[0];
+        }
+
+        modelSelect.value = settings.model;
+        modelsLoaded = true;
+    }
+
+    async function loadModels() {
+        try {
+            const response = await fetch(buildApiUrl('/api/models'), { method: 'GET' });
+            const rawText = await response.text();
+            let data = [];
+
+            try {
+                data = rawText ? JSON.parse(rawText) : [];
+            } catch (_) {
+                data = [];
+            }
+
+            if (!response.ok) {
+                throw new Error(extractReadableError(response.status, data, rawText));
+            }
+
+            fillModels(Array.isArray(data) ? data : (data.data || []));
+            const session = getCurrentSession();
+            if (session) {
+                modelSelect.value = session.model || settings.model;
+            }
+            await syncModelContextLimit(modelSelect.value);
+        } catch (error) {
+            console.error(error);
+            fillModels([{ id: DEFAULT_MODEL }]);
+            await syncModelContextLimit(modelSelect.value);
+        }
+    }
+
+    async function syncModelContextLimit(modelId = modelSelect.value) {
+        const session = getCurrentSession();
+        if (!session) {
+            updateContextUsage(session);
+            return;
+        }
+
+        const selectedModel = String(modelId || session.model || DEFAULT_MODEL).trim();
+        const useOverride = session.max_context_tokens_override === true || settings.max_context_tokens_override === true;
+
+        if (useOverride) {
+            const overrideLimit = normalizeMaxContextTokens(session.max_context_tokens ?? settings.max_context_tokens);
+            session.max_context_tokens = overrideLimit;
+            settings.max_context_tokens = overrideLimit;
+            session.model = selectedModel;
+            saveSessionsToStorage();
+            saveSettingsToStorage();
+            syncSettingsFromSession(session);
+            updateContextUsage(session);
+            return;
+        }
+
+        try {
+            const response = await fetch(`${buildApiUrl('/api/model-info')}?model=${encodeURIComponent(selectedModel)}`);
+            const data = await response.json();
+            const modelLimit = normalizeMaxContextTokens(data?.context_length ?? data?.max_context_length);
+            session.max_context_tokens = modelLimit;
+            session.model = selectedModel;
+            saveSessionsToStorage();
+            syncSettingsFromSession(session);
+        } catch (error) {
+            console.warn('读取模型上下文上限失败，使用 8192', error);
+            session.max_context_tokens = 8192;
+            syncSettingsFromSession(session);
+        }
+        updateContextUsage(session);
+    }
+
+    function setSendingState(state) {
+        sending = state;
+        messageInput.disabled = state;
+        imageUploadBtn.disabled = state;
+        newChatBtn.disabled = state;
+        settingsBtn.disabled = state;
+        historyBtn.disabled = state;
+        chatList.querySelectorAll('.copy-btn').forEach((copyButton) => {
+            copyButton.disabled = state;
+        });
+        sendBtn.textContent = state ? '⏹️ 停止' : '发送';
+        sendBtn.classList.toggle('stop-btn', state);
+    }
+
+    function appendLoadingBubble() {
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble assistant';
+        bubble.innerHTML = '<div class="loading"><span></span><span></span><span></span></div>';
+        bubble.dataset.loading = 'true';
+        chatList.appendChild(bubble);
+        toggleEmptyState();
+        scrollToBottom();
+        return bubble;
+    }
+
+    function removeLoadingBubble() {
+        const loading = chatList.querySelector('[data-loading="true"]');
+        if (loading) loading.remove();
+    }
+
+    function stopCurrentGeneration() {
+        if (currentAbortController) {
+            currentAbortController.abort();
+        }
+    }
+
+    function persistCurrentSession() {
+        const session = getCurrentSession();
+        if (!session) return;
+        syncSessionFromUI(session);
+        session.messages = historyMessages;
+        if (session.title === '新对话' || !session.title) {
+            updateCurrentSessionTitleFromMessages(session);
+        }
+        session.updatedAt = Date.now();
+        saveSessionsToStorage();
+        renderHistoryList();
+    }
+
+    async function createAndSwitchToNewSession() {
+        persistCurrentSession();
+        const session = createSession({
+            messages: [],
+            system_prompt: systemPromptInput.value.trim() || DEFAULT_SYSTEM_PROMPT,
+            temperature: Number(temperatureInput.value) || 0.7,
+            model: modelSelect.value || settings.model || DEFAULT_MODEL,
+            title: '新对话'
+        });
+
+        sessions.push(session);
+        currentSessionId = session.id;
+        historyMessages = session.messages;
+        syncSettingsFromSession(session);
+        renderMessages(session.messages);
+        saveSessionsToStorage();
+        renderHistoryList();
+        await syncModelContextLimit(session.model);
+        closeHistoryDrawer();
+        messageInput.focus();
+    }
+
+    function switchSession(sessionId) {
+        const session = sessions.find((item) => item.id === sessionId);
+        if (!session || session.id === currentSessionId) return;
+
+        persistCurrentSession();
+        currentSessionId = session.id;
+        historyMessages = session.messages;
+        syncSettingsFromSession(session);
+        renderMessages(session.messages);
+        renderHistoryList();
+        updateContextUsage(session);
+        closeHistoryDrawer();
+        messageInput.focus();
+    }
+
+    function deleteSession(sessionId) {
+        if (!confirm('确定要删除这条历史记录吗？')) {
+            return;
+        }
+
+        sessions = sessions.filter((item) => item.id !== sessionId);
+        if (!sessions.length) {
+            const session = createSession();
+            sessions = [session];
+            currentSessionId = session.id;
+        } else if (currentSessionId === sessionId) {
+            sessions = sortSessionsByUpdatedAtDesc(sessions);
+            currentSessionId = sessions[0].id;
+        } else {
+            sessions = sortSessionsByUpdatedAtDesc(sessions);
+        }
+
+        const session = getCurrentSession();
+        historyMessages = session ? session.messages : [];
+        if (session) {
+            syncSettingsFromSession(session);
+        }
+        renderMessages(historyMessages);
+        saveSessionsToStorage();
+        renderHistoryList();
+        updateContextUsage(session);
+    }
+
+    function buildApiContext(messages, targetMsgIndex = null) {
+        const session = getCurrentSession();
+        const maxTokens = getContextLimit(session);
+        const targetTokens = Math.max(256, Math.floor(maxTokens * 0.8));
+        const systemMessage = {
+            role: 'system',
+            content: session?.system_prompt || systemPromptInput.value.trim() || DEFAULT_SYSTEM_PROMPT
+        };
+        const systemTokens = estimateTokens(systemMessage.content);
+        const historyBudget = Math.max(1, targetTokens - systemTokens);
+        const source = Number.isInteger(targetMsgIndex)
+            ? messages.slice(0, targetMsgIndex)
+            : messages;
+        let validMessages = source
+            .filter((message) => message
+                && message.excludeFromContext !== true
+                && (message.role === 'user' || message.role === 'assistant')
+                && String(message.content || '').trim())
+            .map((message) => ({ role: message.role, content: message.content }));
+
+        const lastUserIndex = validMessages.reduce(
+            (lastIndex, message, index) => message.role === 'user' ? index : lastIndex,
+            -1
+        );
+
+        if (lastUserIndex < 0) {
+            const fallbackUser = [...source]
+                .reverse()
+                .find((message) => message
+                    && message.role === 'user'
+                    && String(message.content || '').trim());
+            if (fallbackUser) {
+                validMessages = [{ role: 'user', content: fallbackUser.content }];
+            }
+        } else if (validMessages[validMessages.length - 1].role !== 'user') {
+            validMessages = validMessages.slice(0, lastUserIndex + 1);
+        }
+
+        if (!validMessages.length || validMessages[validMessages.length - 1].role !== 'user') {
+            throw new Error('未找到关联的用户问题，请重新发送');
+        }
+
+        const latestUser = validMessages[validMessages.length - 1];
+        latestUser.content = truncateTextToTokenBudget(latestUser.content, historyBudget);
+        const selected = [latestUser];
+        let totalTokens = estimateTokens(latestUser.content);
+        for (let index = validMessages.length - 2; index >= 0; index -= 1) {
+            const message = validMessages[index];
+            const messageTokens = estimateTokens(message.content);
+            if (totalTokens + messageTokens > historyBudget) break;
+            selected.unshift(message);
+            totalTokens += messageTokens;
+        }
+
+        return selected;
+    }
+
+    async function requestAssistantResponse(session, assistantBubble, userMessage, version = 1, apiMessages = null, imageBase64 = null) {
+        const loadingBubble = appendLoadingBubble();
+        setSendingState(true);
+        currentAbortController = new AbortController();
+        let assistantText = '';
+        let citations = [];
+
+        try {
+            const requestMessages = apiMessages || buildApiContext(session.messages);
+            lastSentContextBySession.set(session.id, requestMessages);
+            updateContextUsage(session, requestMessages);
+
+            let finalSystemPrompt = systemPromptInput.value.trim() || session.system_prompt || DEFAULT_SYSTEM_PROMPT;
+            const hasImages = session.messages.some((message) => message && message.imageId);
+            if (hasImages) {
+                finalSystemPrompt += '\n\n【注意】当回答涉及用户上传的图片时，请在引用或回答末尾标注对应的图片标识（例如 [image_1]、[image_2]）。';
+            }
+
+            const response = await fetch(buildApiUrl('/api/chat'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                signal: currentAbortController.signal,
+                body: JSON.stringify({
+                    messages: requestMessages,
+                    system_prompt: finalSystemPrompt,
+                    temperature: Number(temperatureInput.value),
+                    model: modelSelect.value || session.model || DEFAULT_MODEL,
+                    web_search: isWebSearchEnabled,
+                    image_base64: imageBase64
+                })
+            });
+
+            if (!response.ok) {
+                const rawText = await response.text();
+                let data = {};
+                try {
+                    data = rawText ? JSON.parse(rawText) : {};
+                } catch (_) {
+                    data = { raw: rawText };
+                }
+                throw new Error(extractReadableError(response.status, data, rawText));
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder('utf-8');
+            let buffer = '';
+            removeLoadingBubble(loadingBubble);
+
+            const consumeLines = (text) => {
+                buffer += text;
+                const lines = buffer.split(/\r?\n/);
+                buffer = lines.pop() || '';
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    if (!trimmed || !trimmed.startsWith('data:')) continue;
+                    const data = trimmed.slice(5).trim();
+                    if (data === '[DONE]') continue;
+                    let json;
+                    try {
+                        json = JSON.parse(data);
+                    } catch (_) {
+                        continue;
+                    }
+                    if (json?.error) {
+                        throw new Error(stringifyError(json.detail || json.error, '模型返回错误'));
+                    }
+                    const delta = json?.choices?.[0]?.delta?.content;
+                    if (Array.isArray(json?.citations)) {
+                        citations = json.citations.filter((item) => item && typeof item === 'object');
+                        updateAssistantBubble(assistantBubble, assistantText, citations);
+                    }
+                    if (typeof delta === 'string' && delta) {
+                        assistantText += delta;
+                        updateAssistantBubble(assistantBubble, assistantText, citations);
+                    }
+                }
+            };
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                consumeLines(decoder.decode(value, { stream: true }));
+            }
+            consumeLines(decoder.decode());
+
+            if (!assistantText.trim()) {
+                assistantText = 'AI 未返回任何内容';
+                updateAssistantBubble(assistantBubble, assistantText, citations);
+            }
+            persistAssistantMessage(session, assistantBubble, assistantText, false, userMessage, version, citations);
+            updateContextUsage(session);
+        } catch (error) {
+            if (error && error.name === 'AbortError') {
+                persistAssistantMessage(session, assistantBubble, assistantText || '', true, userMessage, version, citations);
+            } else {
+                console.error(error);
+                removeLoadingBubble(loadingBubble);
+                if (assistantBubble && assistantBubble.parentElement) assistantBubble.remove();
+                renderBubble('system', `请求失败：${stringifyError(error)}`, false);
+            }
+        } finally {
+            setSendingState(false);
+            currentAbortController = null;
+            updateContextUsage(session);
+        }
+    }
+
+    async function regenerateResponse(messageIndex) {
+        if (sending) return;
+        const session = getCurrentSession();
+        const oldMessage = session?.messages?.[messageIndex];
+        if (!session || !oldMessage || oldMessage.role !== 'assistant') return;
+
+        oldMessage.excludeFromContext = true;
+        let apiMessages;
+        try {
+            apiMessages = buildApiContext(session.messages, messageIndex);
+        } catch (error) {
+            oldMessage.excludeFromContext = false;
+            alert('未找到关联的用户问题，请重新发送');
+            return;
+        }
+
+        const userMessage = [...session.messages.slice(0, messageIndex)]
+            .reverse()
+            .find((message) => message.role === 'user' && String(message.content || '').trim()) || null;
+        const nextVersion = (Number(oldMessage.version) || 1) + 1;
+        session.updatedAt = Date.now();
+        saveSessionsToStorage();
+
+        const assistantBubble = createAssistantBubble({ role: 'assistant', content: '', version: nextVersion });
+        await requestAssistantResponse(
+            session,
+            assistantBubble,
+            userMessage,
+            nextVersion,
+            apiMessages,
+            userMessage.imageBase64 || null
+        );
+    }
+
+    async function sendMessage() {
+        if (sending) {
+            stopCurrentGeneration();
+            return;
+        }
+
+        const text = messageInput.value.trim();
+        const imageBase64 = selectedImageBase64;
+        if (!text && !imageBase64) return;
+        const session = getCurrentSession();
+        if (!session) return;
+
+        const messageText = text || '（仅图片）';
+
+        messageInput.value = '';
+        autoResizeTextarea(messageInput);
+        clearSelectedImage();
+        const imageId = imageBase64
+            ? `image_${session.messages.filter((message) => message.role === 'user' && message.imageBase64).length + 1}`
+            : null;
+        const userMessage = {
+            role: 'user',
+            content: messageText,
+            version: 1,
+            turnId: createTurnId(),
+            ...(imageBase64 ? {
+                imageBase64,
+                imageId,
+                imageWidth: selectedImageWidth,
+                imageHeight: selectedImageHeight
+            } : {})
+        };
+        session.messages.push(userMessage);
+        historyMessages = session.messages;
+        if (session.title === '新对话') updateCurrentSessionTitleFromMessages(session);
+        session.updatedAt = Date.now();
+        saveSessionsToStorage();
+        renderHistoryList();
+        updateContextUsage(session);
+        renderBubble('user', messageText, false, userMessage, session.messages.length - 1);
+
+        const assistantBubble = createAssistantBubble({ role: 'assistant', content: '', version: 1 });
+        await requestAssistantResponse(
+            session,
+            assistantBubble,
+            userMessage,
+            1,
+            buildApiContext(session.messages),
+            imageBase64
+        );
+    }
+
+    function cleanTextForClipboard(rawText) {
+        let text = String(rawText ?? '').replace(/\r\n?/g, '\n');
+        text = text.replace(/^(?:\s*(?:🔍|⚠️)[^\n]*(?:\n|$))+/, '');
+        const subscriptMap = { '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄', '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉' };
+        const superscriptMap = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', '+': '⁺', '-': '⁻', '=': '⁼', '(': '⁽', ')': '⁾' };
+        const toSubscript = (value) => [...value].map((character) => subscriptMap[character] || character).join('');
+        const toSuperscript = (value) => [...value].map((character) => superscriptMap[character] || character).join('');
+
+        text = text
+            .replace(/```[\w+-]*\s*\n?/g, '')
+            .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+            .replace(/^(\s*)[*-]\s+/gm, '$1• ')
+            .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+            .replace(/\*\*([^*\n]+)\*\*/g, '$1')
+            .replace(/\*([^*\n]+)\*/g, '$1')
+            .replace(/\$\$?|\\\[|\\\]|\\\(|\\\)/g, '');
+
+        text = text
+            .replace(/\\(iint|iiint|oint|int)_\{([^{}]+)\}\^\{([^{}]+)\}/g, (_, command, lower, upper) => `${({ iint: '∬', iiint: '∭', oint: '∮', int: '∫' })[command]}[${lower}→${upper}]`)
+            .replace(/\\int_\{([^{}]+)\}\^\{([^{}]+)\}/g, '∫[$1→$2]')
+            .replace(/\\int_([\w.-]+)\^([\w.-]+)/g, '∫[$1→$2]')
+            .replace(/\\?xrightarrow(?:\[([^\]]*)\])?(?:\{([^{}]*)\})?/g, (_, optionalCondition, requiredCondition) => {
+                const condition = String(requiredCondition || optionalCondition || '').trim();
+                return condition ? `[${condition}]→` : '→';
+            })
+            .replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, '($1/$2)')
+            .replace(/\\sqrt\{([^{}]+)\}/g, '√($1)')
+            .replace(/\^\{([^{}]+)\}/g, (_, value) => toSuperscript(value))
+            .replace(/\^([0-9]+[+-]?)/g, (_, value) => toSuperscript(value))
+            .replace(/_\{([^{}]+)\}/g, (_, value) => toSubscript(value))
+            .replace(/_([0-9]+)/g, (_, value) => toSubscript(value));
+
+        const symbols = {
+            longrightarrow: '→', rightarrow: '→', leftarrow: '←', uparrow: '↑', downarrow: '↓',
+            pm: '±', approx: '≈', neq: '≠', le: '≤', ge: '≥', times: '×', div: '÷',
+            alpha: 'α', beta: 'β', gamma: 'γ', pi: 'π', theta: 'θ', omega: 'ω', Delta: 'Δ', nabla: '∇',
+            int: '∫', iint: '∬', iiint: '∭', oint: '∮', partial: '∂', infty: '∞', sum: '∑', cdot: '·'
+        };
+        Object.entries(symbols).forEach(([command, symbol]) => {
+            text = text.replace(new RegExp(`\\\\${command}(?![A-Za-z])`, 'g'), symbol);
+        });
+
+        text = text
+            .replace(/\b([A-Z][a-z]?)(\d+)(?=[A-Z]|$)/g, (_, element, count) => `${element}${toSubscript(count)}`)
+            .replace(/\b([A-Z][a-z]?)(\d+)([+-])(?=\b|[^A-Za-z])/g, (_, element, charge, sign) => `${element}${toSuperscript(charge + sign)}`)
+            .replace(/\\(?:left|right|text|mathrm|mathbf)\s*/g, '')
+            .replace(/\\([A-Za-z]+)/g, '$1')
+            .replace(/[{}]/g, '')
+            .replace(/\s+\n/g, '\n')
+            .replace(/\n{3,}/g, '\n\n');
+
+        return text.trim();
+    }
+
+    async function copyText(text, button) {
+        if (sending || button?.disabled) {
+            return;
+        }
+
+        const cleanedText = cleanTextForClipboard(text);
+        const restore = () => {
+            button.textContent = '📋 复制';
+        };
+
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(cleanedText);
+            } else {
+                throw new Error('clipboard unavailable');
+            }
+        } catch (_) {
+            const textarea = document.createElement('textarea');
+            textarea.value = cleanedText;
+            textarea.setAttribute('readonly', '');
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            const copied = document.execCommand('copy');
+            textarea.remove();
+            if (!copied) throw new Error('copy failed');
+        }
+        button.textContent = '✅ 已复制';
+        window.setTimeout(restore, 1500);
+    }
+
+    function closeCitationPopover() {
+        citationPopover.classList.remove('show');
+        citationPopover.innerHTML = '';
+    }
+
+    function showCitationPopover(tag) {
+        const messageIndex = Number(tag.closest('.bubble-shell')?.querySelector('.bubble')?.dataset.messageIndex);
+        const message = Number.isInteger(messageIndex) ? historyMessages[messageIndex] : null;
+        const citation = message?.citations?.find((item) => String(item?.id || '') === tag.dataset.id);
+        if (!citation) return;
+
+        citationPopover.innerHTML = '';
+        const title = document.createElement('div');
+        title.className = 'citation-title';
+        title.textContent = `[${citation.id}] ${citation.title || '无标题'}`;
+        if (citation.url) {
+            const link = document.createElement('a');
+            link.href = citation.url;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.textContent = citation.url;
+            citationPopover.appendChild(link);
+        }
+
+        citationPopover.classList.add('show');
+        const rect = tag.getBoundingClientRect();
+        const left = Math.min(Math.max(12, rect.left), window.innerWidth - citationPopover.offsetWidth - 12);
+        const top = Math.min(rect.bottom + 8, window.innerHeight - citationPopover.offsetHeight - 12);
+        citationPopover.style.left = `${Math.max(12, left)}px`;
+        citationPopover.style.top = `${Math.max(12, top)}px`;
+    }
+
+    function initializeSessions() {
+        sessions = loadSessionsFromStorage();
+        if (!sessions.length) {
+            const session = createSession();
+            sessions = [session];
+            currentSessionId = session.id;
+        } else {
+            sessions = sessions.map(createSession);
+            sessions = sortSessionsByUpdatedAtDesc(sessions);
+            currentSessionId = sessions[0].id;
+        }
+
+        const session = getCurrentSession();
+        historyMessages = session ? session.messages : [];
+        syncSettingsFromSession(session || createSession());
+        renderMessages(historyMessages);
+        saveSessionsToStorage();
+        renderHistoryList();
+        updateContextUsage(session);
+    }
+
+    historyBtn.addEventListener('click', openHistoryDrawer);
+    historyMask.addEventListener('click', closeHistoryDrawer);
+    newChatBtn.addEventListener('click', createAndSwitchToNewSession);
+    settingsBtn.addEventListener('click', showSettings);
+    settingsMask.addEventListener('click', hideSettings);
+    imageViewerMask.addEventListener('click', closeImageViewer);
+    closeImageViewerBtn.addEventListener('click', closeImageViewer);
+    closeSettingsBtn.addEventListener('click', hideSettings);
+    webSearchToggle.addEventListener('click', toggleWebSearch);
+    sendBtn.addEventListener('click', (event) => {
+        event.preventDefault();
+        sendMessage();
+    });
+    saveSettingsBtn.addEventListener('click', () => {
+        const session = getCurrentSession();
+        if (session) {
+            syncSessionFromUI(session);
+            settings.model = session.model;
+            settings.system_prompt = session.system_prompt;
+            settings.temperature = session.temperature;
+            settings.image_compress_ratio = session.image_compress_ratio;
+            syncSettingsFromSession(session);
+            saveSessionsToStorage();
+            renderHistoryList();
+        }
+        saveSettingsToStorage();
+        hideSettings();
+    });
+
+    temperatureInput.addEventListener('input', () => {
+        temperatureValue.textContent = Number(temperatureInput.value).toFixed(1);
+    });
+    imageCompressRatio.addEventListener('input', () => {
+        imageCompressRatioValue.textContent = `${Number(imageCompressRatio.value) || 50}%`;
+    });
+    modelSelect.addEventListener('change', async () => {
+        const session = getCurrentSession();
+        if (!session) return;
+        session.model = modelSelect.value || DEFAULT_MODEL;
+        saveSessionsToStorage();
+        await syncModelContextLimit(session.model);
+    });
+
+    messageInput.addEventListener('input', () => autoResizeTextarea(messageInput));
+    imageUploadBtn.addEventListener('click', () => imageInput.click());
+    imageInput.addEventListener('change', () => {
+        const [file] = imageInput.files || [];
+        readImageFile(file);
+    });
+    messageInput.addEventListener('paste', (event) => {
+        const imageItem = [...(event.clipboardData?.items || [])]
+            .find((item) => item.type && item.type.startsWith('image/'));
+        if (!imageItem) return;
+        const file = imageItem.getAsFile();
+        if (file) {
+            event.preventDefault();
+            readImageFile(file);
+        }
+    });
+    messageInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            sendMessage();
+        }
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            hideSettings();
+            closeHistoryDrawer();
+            closeCitationPopover();
+            closeImageViewer();
+            closeCodeRunner();
+        }
+    });
+
+    codeRunnerMask.addEventListener('click', closeCodeRunner);
+    closeCodeRunnerBtn.addEventListener('click', closeCodeRunner);
+
+    document.addEventListener('click', (event) => {
+        if (!event.target.closest('.citation-tag') && !event.target.closest('.citation-popover')) {
+            closeCitationPopover();
+        }
+    });
+
+    chatList.addEventListener('click', (event) => {
+        const citationTag = event.target.closest('.citation-tag');
+        if (citationTag) {
+            event.stopPropagation();
+            showCitationPopover(citationTag);
+            return;
+        }
+
+        const codeCopyButton = event.target.closest('.code-copy-btn');
+        if (codeCopyButton) {
+            copyText(codeCopyButton.dataset.codeText || '', codeCopyButton).catch(() => {
+                codeCopyButton.textContent = '❌ 复制失败';
+            });
+            return;
+        }
+
+        const codeRunButton = event.target.closest('.code-run-btn');
+        if (codeRunButton) {
+            openCodeRunner(codeRunButton.dataset.codeText || '', codeRunButton.dataset.codeLanguage || 'javascript');
+            return;
+        }
+
+        const copyButton = event.target.closest('.copy-btn');
+        if (copyButton) {
+            if (sending || copyButton.disabled) {
+                return;
+            }
+            copyText(copyButton.dataset.copyText || '', copyButton).catch(() => {
+                copyButton.textContent = '❌ 复制失败';
+                window.setTimeout(() => { copyButton.textContent = '📋 复制'; }, 1500);
+            });
+            return;
+        }
+
+        const regenerateButton = event.target.closest('.regenerate-btn');
+        if (regenerateButton) {
+            const messageIndex = Number(regenerateButton.dataset.messageIndex);
+            if (Number.isInteger(messageIndex)) regenerateResponse(messageIndex);
+            return;
+        }
+
+        const historyButton = event.target.closest('.history-versions-btn');
+        if (historyButton) {
+            const historyGroup = historyButton.dataset.historyGroup;
+            const historyShells = [...chatList.querySelectorAll('.collapsed-versions')]
+                .filter((shell) => shell.dataset.historyGroup === historyGroup);
+            const shouldExpand = historyShells.some((shell) => shell.style.display !== 'flex');
+            historyShells.forEach((shell) => {
+                shell.style.display = shouldExpand ? 'flex' : 'none';
+            });
+            historyButton.textContent = shouldExpand ? '📕 收起历史' : `📜 展开历史 (${historyShells.length})`;
+        }
+    });
+
+    chatList.addEventListener('keydown', (event) => {
+        const citationTag = event.target.closest('.citation-tag');
+        if (citationTag && (event.key === 'Enter' || event.key === ' ')) {
+            event.preventDefault();
+            showCitationPopover(citationTag);
+        }
+    });
+
+    loadSettingsFromStorage();
+    loadModels();
+    loadWebSearchSetting();
+    initializeSessions();
+    autoResizeTextarea(messageInput);
+</script>
+</body>
+</html>
+
+
+
+
+
