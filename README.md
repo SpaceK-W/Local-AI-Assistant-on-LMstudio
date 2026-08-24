@@ -90,7 +90,6 @@
 
 2\. \*\*\[LM Studio](https://lmstudio.ai/)\*\*：确保已启动 Local Server 并监听在 `\[http://127.0.0.1:1234](http://127.0.0.1:1234)`。
 
-3\. \*\*\[ComfyUI](https://github.com/comfyanonymous/ComfyUI)\*\* \*(可选，用于文生视频功能)\*：确保已启动且启动命令附带 `--enable-cors-header` 参数（默认监听 `\[http://127.0.0.1:8188](http://127.0.0.1:8188)`）。
 
 
 
@@ -164,7 +163,7 @@ python app.py
 
 👉 \*\*`\[http://127.0.0.1:5000](http://127.0.0.1:5000)`\*\*
 
-
+或者：运行image并配置5000端口
 
 \---
 
