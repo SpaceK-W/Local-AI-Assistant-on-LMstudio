@@ -57,3 +57,6 @@ obj/
 .DS_Store
 Thumbs.db
 desktop.ini
+WebProject1/
+*.slnx
+ALL_PLANS_INTEGRATED.md
