@@ -82,8 +82,9 @@ python app.py
 
 Once started successfully, open your browser and navigate to:
 👉 **`http://127.0.0.1:5000`**
-### Windows 一键启动
-下载项目后直接双击根目录下的 `start.bat`，脚本会自动检测环境、创建 `.venv`、安装第三方依赖并打开浏览器页面。
+### Windows One-Click Launch
+
+After downloading the project, simply double-click `start.bat` in the root directory. The script will automatically detect the environment, create `.venv`, install third-party dependencies, and open the application in your browser.
 *(Or run via Docker container with port 5000 mapped)*
 
 ---
